@@ -100,6 +100,7 @@ struct http_request : request_common
 {
     struct proto_state : request_common::proto_state
     {
+        std::string post_body; // копия тела POST на время curl-запроса
     };
 
     std::string method; /// GET by default
@@ -874,10 +875,10 @@ private:
 
                 if (has_body)
                 {
-                    // Копируем body: указатель из todo может стать невалидным до завершения curl.
-                    // Размер обязателен при ручном Content-Type в CURLOPT_HTTPHEADER.
-                    curl_easy_setopt(easy, CURLOPT_COPYPOSTFIELDS, body->c_str());
-                    curl_easy_setopt(easy, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(body->size()));
+                    // Буфер в proto_state: POSTFIELDS + явный размер при ручном Content-Type.
+                    state.post_body = *body;
+                    curl_easy_setopt(easy, CURLOPT_POSTFIELDS, state.post_body.data());
+                    curl_easy_setopt(easy, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(state.post_body.size()));
                     if (is_post)
                         curl_easy_setopt(easy, CURLOPT_POST, 1L);
                     else
