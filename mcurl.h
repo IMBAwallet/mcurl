@@ -870,8 +870,8 @@ private:
                 }
                 else if (const auto *body = std::get_if<std::string>(&req.body); body != nullptr && !body->empty())
                 {
-                    curl_easy_setopt(easy, CURLOPT_POSTFIELDS, body->data());
-                    curl_easy_setopt(easy, CURLOPT_POSTFIELDSIZE, body->size());
+                    // Копируем body: иначе указатель на строку из todo может стать невалидным до завершения curl.
+                    curl_easy_setopt(easy, CURLOPT_COPYPOSTFIELDS, body->c_str());
                     curl_easy_setopt(easy, CURLOPT_POST, true);
                 }
                 else
@@ -895,6 +895,7 @@ private:
             curl_easy_setopt(easy, CURLOPT_LOW_SPEED_TIME, 20L);
             curl_easy_setopt(easy, CURLOPT_LOW_SPEED_LIMIT, 8L);
             curl_easy_setopt(easy, CURLOPT_CONNECTTIMEOUT, 30L);
+            curl_easy_setopt(easy, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
 
             curl_easy_setopt(easy, CURLOPT_FOLLOWLOCATION, 1L);
             curl_easy_setopt(easy, CURLOPT_REDIR_PROTOCOLS_STR, "http,https"); //By default libcurl allows HTTP, HTTPS, FTP and FTPS on redirects (since 7.65.2).
