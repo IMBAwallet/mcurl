@@ -865,22 +865,15 @@ private:
                     }
                     curl_easy_setopt(easy, CURLOPT_MIMEPOST, state.mime);
                 }
-                else if (json_post)
-                {
-                    state.post_body = *body;
-                    state.mime = curl_mime_init(easy);
-                    auto part = curl_mime_addpart(state.mime);
-                    curl_mime_data(part, state.post_body.data(), state.post_body.size());
-                    curl_mime_type(part, "application/json");
-                    curl_easy_setopt(easy, CURLOPT_MIMEPOST, state.mime);
-                    curl_easy_setopt(easy, CURLOPT_POST, 1L);
-                }
                 else if (has_body)
                 {
                     state.post_body = *body;
                     curl_easy_setopt(easy, CURLOPT_POSTFIELDS, state.post_body.data());
                     curl_easy_setopt(easy, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(state.post_body.size()));
-                    curl_easy_setopt(easy, CURLOPT_CUSTOMREQUEST, req.method.c_str());
+                    if (is_post)
+                        curl_easy_setopt(easy, CURLOPT_POST, 1L);
+                    else
+                        curl_easy_setopt(easy, CURLOPT_CUSTOMREQUEST, req.method.c_str());
                 }
                 else if (is_post)
                 {
