@@ -868,19 +868,32 @@ private:
                     }
                     curl_easy_setopt(easy, CURLOPT_MIMEPOST, state.mime);
                 }
-                else if (const auto *body = std::get_if<std::string>(&req.body); body != nullptr && !body->empty())
+                const auto *body = std::get_if<std::string>(&req.body);
+                const bool has_body = body != nullptr && !body->empty();
+                const bool is_post = req.method.empty() || req.method == "POST";
+
+                if (has_body)
                 {
-                    // Копируем body: иначе указатель на строку из todo может стать невалидным до завершения curl.
+                    // Копируем body: указатель из todo может стать невалидным до завершения curl.
+                    // Размер обязателен при ручном Content-Type в CURLOPT_HTTPHEADER.
                     curl_easy_setopt(easy, CURLOPT_COPYPOSTFIELDS, body->c_str());
-                    curl_easy_setopt(easy, CURLOPT_POST, true);
+                    curl_easy_setopt(easy, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(body->size()));
+                    if (is_post)
+                        curl_easy_setopt(easy, CURLOPT_POST, 1L);
+                    else
+                        curl_easy_setopt(easy, CURLOPT_CUSTOMREQUEST, req.method.c_str());
+                }
+                else if (is_post)
+                {
+                    curl_easy_setopt(easy, CURLOPT_POST, 1L);
+                }
+                else if (!req.method.empty() && req.method != "GET")
+                {
+                    curl_easy_setopt(easy, CURLOPT_CUSTOMREQUEST, req.method.c_str());
                 }
                 else
                 {
-                    curl_easy_setopt(easy, CURLOPT_HTTPGET, true);
-                }
-
-                if(!req.method.empty()) {
-                    curl_easy_setopt(easy, CURLOPT_CUSTOMREQUEST, req.method.c_str());
+                    curl_easy_setopt(easy, CURLOPT_HTTPGET, 1L);
                 }
 
                 set_common(req);
