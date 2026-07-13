@@ -814,21 +814,17 @@ private:
                 if (!req.proxy.empty())
                     curl_easy_setopt(easy, CURLOPT_PROXY, req.proxy.c_str());
 
-                //bool content_type_found = false;
-                // добавляем пользовательские заголовки
+                const auto *body = std::get_if<std::string>(&req.body);
+                const bool has_body = body != nullptr && !body->empty();
+                const bool is_post = req.method.empty() || req.method == "POST";
+                const bool json_post = has_body && is_post;
+
                 for (std::string &h : req.headers)
                 {
+                    if (json_post && h.rfind("Content-Type:", 0) == 0)
+                        continue;
                     state.curl_headers = curl_slist_append(state.curl_headers, h.c_str());
-                    //if (h.substr(0, 12) == "Content-Type")
-                    //    content_type_found = true;
                 }
-
-                // По идее, curl должен сам делать заголовок Content-Type: multipart/..
-                // при использовании функций, формирующих эти самые кусочки (curl_formadd и т.п.).
-                // Если что - раскомментировать соотв. кусочки.
-
-                //if (!j.request_parts.empty())
-                //    j.curl_header = curl_slist_append(j.curl_header, "Content-Type: multipart/form-data");
 
                 if (state.curl_headers)
                     curl_easy_setopt(easy, CURLOPT_HTTPHEADER, state.curl_headers);
@@ -869,20 +865,22 @@ private:
                     }
                     curl_easy_setopt(easy, CURLOPT_MIMEPOST, state.mime);
                 }
-                const auto *body = std::get_if<std::string>(&req.body);
-                const bool has_body = body != nullptr && !body->empty();
-                const bool is_post = req.method.empty() || req.method == "POST";
-
-                if (has_body)
+                else if (json_post)
                 {
-                    // Буфер в proto_state: POSTFIELDS + явный размер при ручном Content-Type.
+                    state.post_body = *body;
+                    state.mime = curl_mime_init(easy);
+                    auto part = curl_mime_addpart(state.mime);
+                    curl_mime_data(part, state.post_body.data(), state.post_body.size());
+                    curl_mime_type(part, "application/json");
+                    curl_easy_setopt(easy, CURLOPT_MIMEPOST, state.mime);
+                    curl_easy_setopt(easy, CURLOPT_POST, 1L);
+                }
+                else if (has_body)
+                {
                     state.post_body = *body;
                     curl_easy_setopt(easy, CURLOPT_POSTFIELDS, state.post_body.data());
                     curl_easy_setopt(easy, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(state.post_body.size()));
-                    if (is_post)
-                        curl_easy_setopt(easy, CURLOPT_POST, 1L);
-                    else
-                        curl_easy_setopt(easy, CURLOPT_CUSTOMREQUEST, req.method.c_str());
+                    curl_easy_setopt(easy, CURLOPT_CUSTOMREQUEST, req.method.c_str());
                 }
                 else if (is_post)
                 {
