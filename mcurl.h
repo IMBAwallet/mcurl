@@ -2,6 +2,7 @@
 #define MCURL_H
 
 #include <curl/curl.h>
+#include <algorithm>
 #include <functional>
 #include <queue>
 #include <ev++.h>
@@ -817,12 +818,14 @@ private:
                 const auto *body = std::get_if<std::string>(&req.body);
                 const bool has_body = body != nullptr && !body->empty();
                 const bool is_post = req.method.empty() || req.method == "POST";
-                const bool json_post = has_body && is_post;
 
                 for (std::string &h : req.headers)
                 {
-                    if (json_post && h.rfind("Content-Type:", 0) == 0)
-                        continue;
+                    // Перевод строки внутри заголовка (например, из файла секрета) обрывает
+                    // блок заголовков, и сервер примет запрос без тела. Вырезаем CR/LF.
+                    h.erase(std::remove_if(h.begin(), h.end(),
+                                           [](char c) { return c == '\r' || c == '\n'; }),
+                            h.end());
                     state.curl_headers = curl_slist_append(state.curl_headers, h.c_str());
                 }
 
